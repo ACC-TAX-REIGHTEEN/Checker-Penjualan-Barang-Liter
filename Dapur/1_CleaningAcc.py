@@ -1,6 +1,6 @@
-import pandas as pd
-import numpy as np
 import os
+import numpy as np
+import pandas as pd
 from openpyxl.utils import get_column_letter
 
 def process_excel(filename, expected_columns):
@@ -11,15 +11,19 @@ def process_excel(filename, expected_columns):
     df_raw = pd.read_excel(filename, header=None)
     
     col_indices = {}
+    col_actual_names = {}
     max_header_row = -1
 
     for r_idx, row in df_raw.head(20).iterrows():
         for c_idx, val in row.items():
             if pd.notna(val):
                 clean_val = str(val).strip()
-                if clean_val in expected_columns and clean_val not in col_indices:
-                    col_indices[clean_val] = c_idx
-                    max_header_row = max(max_header_row, r_idx)
+                for col_spec in expected_columns:
+                    candidates = [c.strip() for c in col_spec.split('|')]
+                    if clean_val in candidates and col_spec not in col_indices:
+                        col_indices[col_spec] = c_idx
+                        col_actual_names[col_spec] = clean_val
+                        max_header_row = max(max_header_row, r_idx)
 
     missing_cols = [col for col in expected_columns if col not in col_indices]
     if missing_cols:
@@ -29,8 +33,9 @@ def process_excel(filename, expected_columns):
     df_data = df_raw.iloc[max_header_row + 1:].copy()
     
     df_filtered = pd.DataFrame()
-    for col in expected_columns:
-        df_filtered[col] = df_data[col_indices[col]]
+    for col_spec in expected_columns:
+        actual_name = col_actual_names[col_spec]
+        df_filtered[actual_name] = df_data[col_indices[col_spec]]
 
     df_filtered = df_filtered.replace(r'^\s*$', np.nan, regex=True)
     df_filtered = df_filtered.dropna(how='any')
@@ -80,8 +85,11 @@ def process_excel(filename, expected_columns):
     writer.close()
     print(f"--> Proses selesai, hasil disimpan di {output_filename}")
 
-cols_ptmus = ["Gudang", "No. Pelanggan", "Nama Dept.", "No. Faktur", "Tgl Faktur", "Kode", "Nama Barang", "Qty", "Unit 1", "SIZE", "DPP", "Kategori"]
-cols_ptmsu = ["Gudang", "No. Pelanggan", "Nama Dept.", "No. Faktur", "Tgl Faktur", "Kode", "Nama Barang", "Qty", "Unit 1", "SIZE", "Jumlah", "Kategori"]
+cols_unified = [
+    "Gudang", "No. Pelanggan", "Nama Dept.", "No. Faktur", 
+    "Tgl Faktur", "Kode", "Nama Barang", "Qty", "Unit 1", 
+    "SIZE", "DPP|Jumlah", "Kategori"
+]
 
-process_excel("PTMUS.xls", cols_ptmus)
-process_excel("PTMSU.xls", cols_ptmsu)
+process_excel("PTMUS.xls", cols_unified)
+process_excel("PTMSU.xls", cols_unified)
